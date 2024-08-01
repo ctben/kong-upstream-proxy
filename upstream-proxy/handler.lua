@@ -3,17 +3,27 @@ local url = require "socket.url"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.0",
+  VERSION = "1.0.1",
 }
 
 function UpstreamProxyHandler:access(conf)
+  kong.log.debug("Plugin version: " .. self.VERSION)  -- Log the plugin version
+
   local client = http.new()
 
-  -- Set timeout values
-  client:set_timeouts(20000, 20000, 20000)  -- 20 second timeouts for connect, send, and read
+  -- Set timeout values and log them
+  local connect_timeout = 20000
+  local send_timeout = 20000
+  local read_timeout = 20000
+
+  kong.log.debug("Setting timeouts - connect: " .. connect_timeout .. "ms, send: " .. send_timeout .. "ms, read: " .. read_timeout .. "ms")
+
+  client:set_timeouts(connect_timeout, send_timeout, read_timeout)
 
   -- Get the upstream URL from the service configuration
   local upstream_url = conf.upstream_url or (kong.service.protocol .. "://" .. kong.service.host .. ":" .. (kong.service.port or 80))
+  -- Ensure correct path transformation
+  local request_path = kong.request.get_path()
 
   -- Parse the upstream URL
   local parsed_url = url.parse(upstream_url)
@@ -30,7 +40,7 @@ function UpstreamProxyHandler:access(conf)
   headers["Host"] = parsed_url.host
 
   -- Construct the full URL
-  local full_url = upstream_url .. kong.request.get_path_with_query()
+  local full_url = upstream_url .. request_path .. kong.request.get_path_with_query()
 
   kong.log.debug("Upstream URL: " .. full_url)
   kong.log.debug("Proxy URL: " .. conf.proxy_url)
