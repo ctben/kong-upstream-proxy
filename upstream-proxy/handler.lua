@@ -3,7 +3,7 @@ local url = require "socket.url"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.1",
+  VERSION = "1.0.2",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -22,12 +22,14 @@ function UpstreamProxyHandler:access(conf)
 
   -- Get the upstream URL from the service configuration
   local upstream_url = conf.upstream_url or (kong.service.protocol .. "://" .. kong.service.host .. ":" .. (kong.service.port or 80))
+
   -- Ensure correct path transformation
   local request_path = kong.request.get_path()
 
   -- Parse the upstream URL
   local parsed_url = url.parse(upstream_url)
-  
+  parsed_url.path = parsed_url.path .. request_path
+
   -- Set up the proxy
   kong.log.debug("Setting proxy options")
   client:set_proxy_options({
@@ -40,7 +42,7 @@ function UpstreamProxyHandler:access(conf)
   headers["Host"] = parsed_url.host
 
   -- Construct the full URL
-  local full_url = upstream_url .. request_path .. kong.request.get_path_with_query()
+  local full_url = url.build(parsed_url)
 
   kong.log.debug("Upstream URL: " .. full_url)
   kong.log.debug("Proxy URL: " .. conf.proxy_url)
