@@ -3,7 +3,7 @@ local url = require "socket.url"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.3",
+  VERSION = "1.0.4",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -29,14 +29,11 @@ function UpstreamProxyHandler:access(conf)
   -- Parse the upstream URL
   kong.log.debug("Request path: " .. request_path)
   local parsed_url = url.parse(upstream_url)
+  parsed_url.path = parsed_url.path or ""
   parsed_url.path = parsed_url.path .. request_path
 
   -- Set up the proxy
   kong.log.debug("Setting proxy options")
-  local full_url = url.build(parsed_url)
-
-  kong.log.debug("Full URL: " .. full_url)
-
   client:set_proxy_options({
     http_proxy = conf.proxy_url,
     https_proxy = conf.proxy_url,
@@ -45,6 +42,9 @@ function UpstreamProxyHandler:access(conf)
   -- Prepare headers
   local headers = kong.request.get_headers()
   headers["Host"] = parsed_url.host
+
+  -- Construct the full URL
+  local full_url = url.build(parsed_url)
 
   kong.log.debug("Upstream URL: " .. full_url)
   kong.log.debug("Proxy URL: " .. conf.proxy_url)
@@ -70,6 +70,7 @@ function UpstreamProxyHandler:access(conf)
   kong.log.debug("Response status: " .. res.status)
   kong.log.debug("Response headers: " .. require("cjson").encode(res.headers))
 
+  -- Send the response back to the client
     kong.response.set_header(k, v)
   local body, err = res:read_body()
   if not body then
