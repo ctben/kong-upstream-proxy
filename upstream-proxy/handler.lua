@@ -3,7 +3,7 @@ local url = require "socket.url"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.2",
+  VERSION = "1.0.3",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -27,11 +27,16 @@ function UpstreamProxyHandler:access(conf)
   local request_path = kong.request.get_path()
 
   -- Parse the upstream URL
+  kong.log.debug("Request path: " .. request_path)
   local parsed_url = url.parse(upstream_url)
   parsed_url.path = parsed_url.path .. request_path
 
   -- Set up the proxy
   kong.log.debug("Setting proxy options")
+  local full_url = url.build(parsed_url)
+
+  kong.log.debug("Full URL: " .. full_url)
+
   client:set_proxy_options({
     http_proxy = conf.proxy_url,
     https_proxy = conf.proxy_url,
@@ -40,9 +45,6 @@ function UpstreamProxyHandler:access(conf)
   -- Prepare headers
   local headers = kong.request.get_headers()
   headers["Host"] = parsed_url.host
-
-  -- Construct the full URL
-  local full_url = url.build(parsed_url)
 
   kong.log.debug("Upstream URL: " .. full_url)
   kong.log.debug("Proxy URL: " .. conf.proxy_url)
@@ -68,16 +70,16 @@ function UpstreamProxyHandler:access(conf)
   kong.log.debug("Response status: " .. res.status)
   kong.log.debug("Response headers: " .. require("cjson").encode(res.headers))
 
-  -- Send the response back to the client
-  kong.response.set_status(res.status)
-  for k, v in pairs(res.headers) do
     kong.response.set_header(k, v)
-  end
-  
   local body, err = res:read_body()
   if not body then
     kong.log.err("failed to read response body: ", err)
     return kong.response.exit(500, "Failed to read response body: " .. (err or "unknown error"))
+  end
+
+  kong.response.set_status(res.status)
+  for k, v in pairs(res.headers) do
+    kong.response.set_header(k, v)
   end
 
   kong.response.set_raw_body(body)
