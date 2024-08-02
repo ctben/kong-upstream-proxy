@@ -1,9 +1,11 @@
 local http = require "resty.http"
 local cjson = require "cjson"
+local socket = require "socket"
+local ssl = require "ssl"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.12",
+  VERSION = "1.0.13",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -25,6 +27,7 @@ function UpstreamProxyHandler:access(conf)
   kong.log.debug("Full URL constructed: " .. full_url)
 
   kong.log.debug("Request headers: " .. cjson.encode(headers))
+
   -- Attempt to establish a connection using proxy settings
   local connect_options = {
     scheme = "http",
@@ -45,27 +48,47 @@ function UpstreamProxyHandler:access(conf)
 
   -- Perform SSL handshake with the upstream server through the proxy
   kong.log.debug("Attempting SSL handshake with upstream host: " .. conf.upstream_host)
+
+  local tcp = assert(socket.tcp())
+  tcp:settimeout(10000)
+  assert(tcp:connect("198.1.1.219", 9001))
   
   local handshake_options = {
     verify = false,
     server_name = conf.upstream_host,  -- Ensure the correct SNI is used
     ssl_protocols = "TLSv1.2",  -- Specify SSL/TLS protocol
+  local params = {
+    mode = "client",
+    protocol = "tlsv1_2",
+    verify = "none",
+    options = "all",
   }
   
   local ok, err = client:ssl_handshake(false, conf.upstream_host, false, handshake_options)
 
+  local ssl_sock, err = ssl.wrap(tcp, params)
+  if not ssl_sock then
+    kong.log.err("SSL wrap failed: ", err)
+    return kong.response.exit(500, "SSL wrap failed: " .. (err or "unknown error"))
+  end
+
+  local ok, err = ssl_sock:dohandshake()
   if not ok then
-    kong.log.err("Failed to perform SSL handshake: ", err)
-    return kong.response.exit(500, "Failed to perform SSL handshake: " .. (err or "unknown error"))
+    kong.log.err("SSL handshake failed: ", err)
+    return kong.response.exit(500, "SSL handshake failed: " .. (err or "unknown error"))
   end
 
   kong.log.debug("SSL handshake completed")
+
+  -- Disable keepalive
+  client:set_keepalive(0)
+  kong.log.debug("Keepalive disabled for this connection")
 
   -- Send the request through the proxy
   kong.log.debug("Sending request through proxy to full URL: " .. full_url)
   local res, err = client:request {
     method = kong.request.get_method(),
-    path = full_url,
+    path = kong.request.get_path_with_query(), -- Use path with query directly for the request
     headers = headers,
   }
 
