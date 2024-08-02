@@ -3,7 +3,7 @@ local cjson = require "cjson"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.9",
+  VERSION = "1.0.10",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -35,7 +35,11 @@ function UpstreamProxyHandler:access(conf)
       verify = false,
       server_name = conf.upstream_host
     }
-  })
+  }
+
+  kong.log.debug("Connecting with options: " .. cjson.encode(connect_options))
+
+  local ok, err = client:connect(connect_options)
 
   if not ok then
     kong.log.err("Failed to connect: ", err)
