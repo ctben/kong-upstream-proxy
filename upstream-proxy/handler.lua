@@ -25,7 +25,7 @@ function UpstreamProxyHandler:access(conf)
   kong.log.debug("Request headers: " .. cjson.encode(headers))
 
   -- Attempt to establish a connection
-  local ok, err = client:connect({
+  local connect_options = {
     scheme = "https",
     host = conf.upstream_host,
     port = 443,
