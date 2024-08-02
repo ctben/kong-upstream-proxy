@@ -1,9 +1,10 @@
 local http = require "resty.http"
 local cjson = require "cjson"
+local url = require "socket.url"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.6",
+  VERSION = "1.0.7",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -13,6 +14,14 @@ function UpstreamProxyHandler:access(conf)
 
   -- Set timeout values
   client:set_timeouts(10000, 10000, 10000)
+
+  -- Parse proxy URL
+  local proxy_parts = url.parse(conf.proxy_url)
+  local proxy_host = proxy_parts.host
+  local proxy_port = proxy_parts.port or (proxy_parts.scheme == "https" and 443 or 80)
+
+  kong.log.debug("Proxy host: " .. proxy_host)
+  kong.log.debug("Proxy port: " .. proxy_port)
 
   -- Set up the proxy
   client:set_proxy_options({
@@ -32,10 +41,10 @@ function UpstreamProxyHandler:access(conf)
   kong.log.debug("Request headers: " .. cjson.encode(headers))
 
   -- Test proxy connection
-  local proxy_ok, proxy_err = client:connect(conf.proxy_url)
-  if not proxy_ok then
-    kong.log.err("Failed to connect to proxy: ", proxy_err)
-    return kong.response.exit(500, "Failed to connect to proxy: " .. (proxy_err or "unknown error"))
+  local ok, err = client:connect(proxy_host, proxy_port)
+  if not ok then
+    kong.log.err("Failed to connect to proxy: ", err)
+    return kong.response.exit(500, "Failed to connect to proxy: " .. (err or "unknown error"))
   end
   client:close()
 
