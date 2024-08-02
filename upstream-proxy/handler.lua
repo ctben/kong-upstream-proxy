@@ -3,7 +3,7 @@ local cjson = require "cjson"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.11",
+  VERSION = "1.0.12",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -45,7 +45,14 @@ function UpstreamProxyHandler:access(conf)
 
   -- Perform SSL handshake with the upstream server through the proxy
   kong.log.debug("Attempting SSL handshake with upstream host: " .. conf.upstream_host)
-  local ok, err = client:ssl_handshake(false, conf.upstream_host, false)
+  
+  local handshake_options = {
+    verify = false,
+    server_name = conf.upstream_host,  -- Ensure the correct SNI is used
+    ssl_protocols = "TLSv1.2",  -- Specify SSL/TLS protocol
+  }
+  
+  local ok, err = client:ssl_handshake(false, conf.upstream_host, false, handshake_options)
 
   if not ok then
     kong.log.err("Failed to perform SSL handshake: ", err)
