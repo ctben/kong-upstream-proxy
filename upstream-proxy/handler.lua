@@ -3,16 +3,16 @@ local cjson = require "cjson"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.5",
+  VERSION = "1.0.6",
 }
 
 function UpstreamProxyHandler:access(conf)
-  kong.log.debug("Plugin version: " .. self.VERSION)  -- Log the plugin version
+  kong.log.debug("Plugin version: " .. self.VERSION)
 
   local client = http.new()
 
   -- Set timeout values
-  client:set_timeouts(10000, 10000, 10000)  -- 10 second timeouts for connect, send, and read
+  client:set_timeouts(10000, 10000, 10000)
 
   -- Set up the proxy
   client:set_proxy_options({
@@ -29,9 +29,15 @@ function UpstreamProxyHandler:access(conf)
 
   kong.log.debug("Upstream URL: " .. full_url)
   kong.log.debug("Proxy URL: " .. conf.proxy_url)
+  kong.log.debug("Request headers: " .. cjson.encode(headers))
 
-  -- Log headers
-  kong.log.debug("Request headers: " .. require("cjson").encode(headers))
+  -- Test proxy connection
+  local proxy_ok, proxy_err = client:connect(conf.proxy_url)
+  if not proxy_ok then
+    kong.log.err("Failed to connect to proxy: ", proxy_err)
+    return kong.response.exit(500, "Failed to connect to proxy: " .. (proxy_err or "unknown error"))
+  end
+  client:close()
 
   -- Send the request through the proxy
   local res, err = client:request {
@@ -51,7 +57,7 @@ function UpstreamProxyHandler:access(conf)
   kong.log.debug("Response status: " .. res.status)
   kong.log.debug("Response headers: " .. cjson.encode(res.headers))
 
-  -- Handle redirects (similar to curl --location)
+  -- Handle redirects
   local redirect_count = 0
   while res.status >= 300 and res.status < 400 and redirect_count < 5 do
     redirect_count = redirect_count + 1
@@ -90,7 +96,6 @@ function UpstreamProxyHandler:access(conf)
   -- Log the response body for debugging
   kong.log.debug("Response body: " .. body)
 
-  -- Terminate further plugin execution
   return kong.response.exit(res.status)
 end
 
