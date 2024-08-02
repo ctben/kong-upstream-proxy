@@ -10,6 +10,7 @@ return {
         fields = {
           { proxy_url = typedefs.url { required = true } },
           { upstream_url = typedefs.url { required = true } },
+          { upstream_host = typedefs.host { required = true } },
         },
       },
     },
