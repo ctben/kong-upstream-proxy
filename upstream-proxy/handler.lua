@@ -3,7 +3,7 @@ local cjson = require "cjson"
 
 local UpstreamProxyHandler = {
   PRIORITY = 1000,
-  VERSION = "1.0.8",
+  VERSION = "1.0.9",
 }
 
 function UpstreamProxyHandler:access(conf)
@@ -30,6 +30,7 @@ function UpstreamProxyHandler:access(conf)
     host = conf.upstream_host,
     port = 443,
     ssl_verify = false,
+    proxy = "http://198.1.1.219:9001",
     ssl = {
       verify = false,
       server_name = conf.upstream_host
